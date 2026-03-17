@@ -24,7 +24,8 @@ from torch.utils.data import DataLoader
 from transformers import AutoTokenizer
 from tqdm import tqdm
 
-from dataset_loader import load_examples, CodeDataset, LABELS
+from preprocessing import Preprocessing, LABELS
+from datasets import CodeDataset
 from model import CodeBERTClassifier
 
 
@@ -164,7 +165,7 @@ def main():
     tokenizer = AutoTokenizer.from_pretrained(args.model_name)
 
     # 3. Carregar exemplos
-    examples = load_examples(args.data_dir)
+    examples = Preprocessing.load_examples(args.data_dir)
     if len(examples) == 0:
         print(
             "[ERRO] Nenhum exemplo encontrado. Verifique a estrutura de pastas do dataset.")

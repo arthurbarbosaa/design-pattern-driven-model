@@ -20,7 +20,7 @@ import torch.nn.functional as F
 from transformers import AutoTokenizer
 
 from model import CodeBERTClassifier
-from dataset_loader import LABELS, LABEL2ID
+from preprocessing import LABELS, LABEL2ID
 
 
 def get_device() -> torch.device:
@@ -99,7 +99,8 @@ def predict(model, tokenizer, code: str, labels: list, device: torch.device, max
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Predição de padrão de projeto com CodeBERT")
+    parser = argparse.ArgumentParser(
+        description="Predição de padrão de projeto com CodeBERT")
     parser.add_argument("--model_dir", type=str, default="models/codebert_dp",
                         help="Diretório com o modelo treinado")
     parser.add_argument("--file", type=str, required=True,
@@ -125,7 +126,8 @@ def main():
         code = f.read()
 
     # 5. Fazer predição
-    predicted_label, probabilities = predict(model, tokenizer, code, labels, device, args.max_length)
+    predicted_label, probabilities = predict(
+        model, tokenizer, code, labels, device, args.max_length)
 
     # 6. Exibir resultado
     print(f"\n{'='*50}")
