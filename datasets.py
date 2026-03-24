@@ -1,13 +1,14 @@
 import torch
-from typing import List, Tuple, cast
+from typing import cast
 from torch.utils.data import Dataset
 from transformers import PreTrainedTokenizer
+from shared_types import CodeExamples
 
 
 class CodeDataset(Dataset):
     def __init__(
         self,
-        examples: List[Tuple[str, int]],
+        examples: CodeExamples,
         tokenizer: PreTrainedTokenizer,
         max_length: int = 512,
     ):
