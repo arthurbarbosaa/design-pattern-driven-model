@@ -16,7 +16,6 @@ Exemplo de uso:
 import argparse
 import gc
 import os
-import random
 
 import torch
 import torch.nn as nn
@@ -38,42 +37,6 @@ def get_device() -> torch.device:
     if torch.cuda.is_available():
         return torch.device("cuda")
     return torch.device("cpu")
-
-
-def split_examples(examples, val_ratio=0.2, seed=42):
-    """Divide exemplos em treino e validação de forma estratificada por label.
-
-    `examples` deve ser uma lista de tuplas (code, label_id).
-    Para cada label, reservamos aproximadamente `val_ratio` dos exemplos
-    para o conjunto de validação.
-    """
-    random.seed(seed)
-
-    # Agrupa exemplos por label_id
-    by_label = {}
-    for code, label_id in examples:
-        by_label.setdefault(label_id, []).append((code, label_id))
-
-    train_examples = []
-    val_examples = []
-
-    for label_id, items in by_label.items():
-        items_shuffled = items[:]
-        random.shuffle(items_shuffled)
-
-        # Garante pelo menos 1 exemplo de validação se houver mais de 1 exemplo
-        n_total = len(items_shuffled)
-        n_val = max(1 if n_total > 1 else 0, int(round(n_total * val_ratio)))
-        n_val = min(n_val, n_total)  # segurança
-
-        val_examples.extend(items_shuffled[:n_val])
-        train_examples.extend(items_shuffled[n_val:])
-
-    # Embaralha novamente os conjuntos finais
-    random.shuffle(train_examples)
-    random.shuffle(val_examples)
-
-    return train_examples, val_examples
 
 
 # ==================== Loop de treino ====================
@@ -172,7 +135,7 @@ def main():
         return
 
     # 4. Split treino / validação
-    train_examples, val_examples = split_examples(
+    train_examples, val_examples = Preprocessing.split_examples(
         examples, val_ratio=args.val_ratio)
     print(
         f"[INFO] Treino: {len(train_examples)} exemplos | Validação: {len(val_examples)} exemplos")
