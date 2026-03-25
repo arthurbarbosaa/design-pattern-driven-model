@@ -21,8 +21,8 @@ import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
 from transformers import AutoTokenizer
-from tqdm import tqdm
 
+from algorithms import FineTuningAlgorithm
 from preprocessing import Preprocessing, LABELS
 from datasets import CodeDataset
 from model import CodeBERTClassifier
@@ -37,58 +37,6 @@ def get_device() -> torch.device:
     if torch.cuda.is_available():
         return torch.device("cuda")
     return torch.device("cpu")
-
-
-# ==================== Loop de treino ====================
-
-def train_one_epoch(model, dataloader, optimizer, criterion, device):
-    """Executa uma época de treinamento. Retorna (loss_média, acurácia)."""
-    model.train()
-    total_loss = 0.0
-    correct = 0
-    total = 0
-
-    for batch in tqdm(dataloader, desc="  Treino", leave=False):
-        input_ids = batch["input_ids"].to(device)
-        attention_mask = batch["attention_mask"].to(device)
-        labels = batch["label"].to(device)
-
-        optimizer.zero_grad()
-        logits = model(input_ids, attention_mask)
-        loss = criterion(logits, labels)
-        loss.backward()
-        optimizer.step()
-
-        total_loss += loss.item() * labels.size(0)
-        preds = logits.argmax(dim=1)
-        correct += (preds == labels).sum().item()
-        total += labels.size(0)
-
-    return total_loss / total, correct / total
-
-
-@torch.no_grad()
-def evaluate(model, dataloader, criterion, device):
-    """Avalia o modelo no conjunto de validação. Retorna (loss_média, acurácia)."""
-    model.eval()
-    total_loss = 0.0
-    correct = 0
-    total = 0
-
-    for batch in tqdm(dataloader, desc="  Valid.", leave=False):
-        input_ids = batch["input_ids"].to(device)
-        attention_mask = batch["attention_mask"].to(device)
-        labels = batch["label"].to(device)
-
-        logits = model(input_ids, attention_mask)
-        loss = criterion(logits, labels)
-
-        total_loss += loss.item() * labels.size(0)
-        preds = logits.argmax(dim=1)
-        correct += (preds == labels).sum().item()
-        total += labels.size(0)
-
-    return total_loss / total, correct / total
 
 
 # ==================== Main ====================
@@ -106,8 +54,10 @@ def main():
                         help="Número de épocas de treino")
     parser.add_argument("--batch_size", type=int,
                         default=2, help="Tamanho do batch")
-    parser.add_argument("--lr", type=float, default=2e-5,
-                        help="Taxa de aprendizado")
+    parser.add_argument("--lr_encoder", type=float, default=1e-5,
+                        help="Taxa de aprendizado do encoder")
+    parser.add_argument("--lr_classifier", type=float, default=1e-3,
+                        help="Taxa de aprendizado da cabeça de classificação")
     parser.add_argument("--max_length", type=int, default=256,
                         help="Comprimento máximo de tokens")
     parser.add_argument("--val_ratio", type=float, default=0.2,
@@ -160,48 +110,36 @@ def main():
         dropout=0.3,
     ).to(device)
 
-    # 6b. Congelar encoder para economizar memória (treina apenas a cabeça)
-    if args.freeze_encoder:
-        for param in model.encoder.parameters():
-            param.requires_grad = False
-        print("[INFO] Encoder congelado — treinando apenas a cabeça de classificação")
-        trainable = [p for p in model.parameters() if p.requires_grad]
-    else:
-        trainable = model.parameters()
-
     # Libera memória não utilizada
     gc.collect()
     torch.cuda.empty_cache() if torch.cuda.is_available() else None
 
-    # 7. Otimizador e função de perda
-    optimizer = torch.optim.AdamW(trainable, lr=args.lr)
+    # 7. Algoritmo de treinamento
     criterion = nn.CrossEntropyLoss()
+    training_algorithm = FineTuningAlgorithm(
+        model,
+        train_loader,
+        val_loader,
+        criterion,
+        device,
+        lr_encoder=args.lr_encoder,
+        lr_classifier=args.lr_classifier,
+        freeze_encoder=args.freeze_encoder,
+    )
+
+    if args.freeze_encoder:
+        print("[INFO] Encoder congelado — treinando apenas a cabeça de classificação")
 
     # 8. Loop de treinamento
-    print(f"\n{'='*60}")
-    print(f"  Iniciando treinamento — {args.epochs} épocas")
-    print(f"{'='*60}\n")
+    def _on_new_best(best_val_acc: float) -> None:
+        _save_model(model, tokenizer, args.output_dir)
+        print(
+            f"  ✓ Modelo salvo em '{args.output_dir}' (melhor val_acc: {best_val_acc:.4f})")
 
-    best_val_acc = 0.0
-
-    for epoch in range(1, args.epochs + 1):
-        print(f"Época {epoch}/{args.epochs}")
-
-        train_loss, train_acc = train_one_epoch(
-            model, train_loader, optimizer, criterion, device)
-        val_loss, val_acc = evaluate(model, val_loader, criterion, device)
-
-        print(f"  Treino  — Loss: {train_loss:.4f} | Acc: {train_acc:.4f}")
-        print(f"  Valid.  — Loss: {val_loss:.4f} | Acc: {val_acc:.4f}")
-
-        # Salva o melhor modelo (baseado em acurácia de validação)
-        if val_acc >= best_val_acc:
-            best_val_acc = val_acc
-            _save_model(model, tokenizer, args.output_dir)
-            print(
-                f"  ✓ Modelo salvo em '{args.output_dir}' (melhor val_acc: {best_val_acc:.4f})")
-
-        print()
+    best_val_acc = training_algorithm.fit(
+        epochs=args.epochs,
+        on_new_best=_on_new_best,
+    )
 
     print(
         f"Treinamento concluído! Melhor acurácia de validação: {best_val_acc:.4f}")
