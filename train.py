@@ -23,6 +23,7 @@ from torch.utils.data import DataLoader
 from transformers import AutoTokenizer
 
 from algorithms import FineTuningAlgorithm
+from observers import ModelCheckpointObserver
 from preprocessing import Preprocessing, LABELS
 from datasets import CodeDataset
 from model import CodeBERTClassifier
@@ -127,35 +128,18 @@ def main():
         freeze_encoder=args.freeze_encoder,
     )
 
+    # Observador responsável por salvar o melhor modelo durante o treinamento
+    training_algorithm.add(ModelCheckpointObserver(args.output_dir, tokenizer))
+
     if args.freeze_encoder:
         print("[INFO] Encoder congelado — treinando apenas a cabeça de classificação")
 
     # 8. Loop de treinamento
-    def _on_new_best(best_val_acc: float) -> None:
-        _save_model(model, tokenizer, args.output_dir)
-        print(
-            f"  ✓ Modelo salvo em '{args.output_dir}' (melhor val_acc: {best_val_acc:.4f})")
-
-    best_val_acc = training_algorithm.fit(
-        epochs=args.epochs,
-        on_new_best=_on_new_best,
-    )
+    best_val_acc = training_algorithm.fit(epochs=args.epochs)
 
     print(
         f"Treinamento concluído! Melhor acurácia de validação: {best_val_acc:.4f}")
     print(f"Modelo salvo em: {args.output_dir}")
-
-
-def _save_model(model, tokenizer, output_dir):
-    """Salva state_dict do modelo e tokenizer no diretório de saída."""
-    os.makedirs(output_dir, exist_ok=True)
-    torch.save(model.state_dict(), os.path.join(
-        output_dir, "model_state_dict.pt"))
-    tokenizer.save_pretrained(output_dir)
-    # Salva também a lista de labels para referência
-    with open(os.path.join(output_dir, "labels.txt"), "w") as f:
-        for label in LABELS:
-            f.write(label + "\n")
 
 
 if __name__ == "__main__":
