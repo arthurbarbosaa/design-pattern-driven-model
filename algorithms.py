@@ -1,5 +1,5 @@
 from tqdm import tqdm
-from typing import Optional
+import torch.nn as nn
 import abc
 
 import torch
@@ -41,7 +41,6 @@ class FineTuningAlgorithm(Algorithm):
         model,
         train_dataloader,
         val_dataloader,
-        criterion,
         device,
         lr_encoder: float = 1e-5,
         lr_classifier: float = 1e-3,
@@ -51,12 +50,18 @@ class FineTuningAlgorithm(Algorithm):
         self.model = model
         self.train_dataloader = train_dataloader
         self.val_dataloader = val_dataloader
-        self.criterion = criterion
         self.device = device
 
         self.lr_encoder = lr_encoder
         self.lr_classifier = lr_classifier
         self.freeze_encoder = freeze_encoder
+
+        self.epochs: int = 0
+        self.epoch: int = 0
+        self.train_loss: float = 0.0
+        self.train_acc: float = 0.0
+        self.val_loss: float = 0.0
+        self.val_acc: float = 0.0
 
         self._setup()
 
@@ -88,6 +93,7 @@ class FineTuningAlgorithm(Algorithm):
             })
 
         self.optimizer = torch.optim.AdamW(param_groups)
+        self.loss_fn = nn.CrossEntropyLoss()
 
     def _process_batch(self, batch, is_training: bool) -> tuple[float, int, int]:
         input_ids = batch["input_ids"].to(self.device)
@@ -98,7 +104,7 @@ class FineTuningAlgorithm(Algorithm):
             self.optimizer.zero_grad()
 
         logits = self.model(input_ids, attention_mask)
-        loss = self.criterion(logits, labels)
+        loss = self.loss_fn(logits, labels)
 
         if is_training:
             loss.backward()
@@ -143,29 +149,22 @@ class FineTuningAlgorithm(Algorithm):
 
         return total_loss / total, correct / total
 
-    def fit(
-        self,
-        epochs: int,
-    ) -> float:
-        print(f"\n{'='*60}")
-        print(f"  Iniciando treinamento — {epochs} épocas")
-        print(f"{'='*60}\n")
+    def fit(self, epochs: int):
+        self.epochs = epochs
 
-        best_val_acc = 0.0
+        self.notify_started()
 
         for epoch in range(1, epochs + 1):
-            print(f"Época {epoch}/{epochs}")
+            self.epoch = epoch
 
             train_loss, train_acc = self.train_one_epoch()
             val_loss, val_acc = self.evaluate()
 
-            print(f"  Treino  — Loss: {train_loss:.4f} | Acc: {train_acc:.4f}")
-            print(f"  Valid.  — Loss: {val_loss:.4f} | Acc: {val_acc:.4f}")
+            self.train_loss = train_loss
+            self.train_acc = train_acc
+            self.val_loss = val_loss
+            self.val_acc = val_acc
 
-            if val_acc >= best_val_acc:
-                best_val_acc = val_acc
-                self.notify_better_valadation_accurency()
+            self.notify_iteration()
 
-            print()
-
-        return best_val_acc
+        self.notify_finished()

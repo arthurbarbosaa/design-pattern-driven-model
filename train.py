@@ -14,33 +14,19 @@ Exemplo de uso:
 """
 
 import argparse
-import gc
-import os
 
 import torch
-import torch.nn as nn
 from torch.utils.data import DataLoader
 from transformers import AutoTokenizer
 
 from algorithms import FineTuningAlgorithm
-from observers import ModelCheckpointObserver
+from observers import ModelCheckpointObserver, TrainingPrintObserver
 from preprocessing import Preprocessing, LABELS
 from datasets import CodeDataset
 from model import CodeBERTClassifier
 
-
-# ==================== Utilidades ====================
-
-def get_device() -> torch.device:
-    """Seleciona o melhor dispositivo disponível: MPS (Apple), CUDA ou CPU."""
-    if torch.backends.mps.is_available():
-        return torch.device("mps")
-    if torch.cuda.is_available():
-        return torch.device("cuda")
-    return torch.device("cpu")
-
-
 # ==================== Main ====================
+
 
 def main():
     parser = argparse.ArgumentParser(
@@ -71,7 +57,7 @@ def main():
     args = parser.parse_args()
 
     # 1. Dispositivo
-    device = get_device()
+    device = torch.device("cpu")
     print(f"[INFO] Dispositivo: {device}")
 
     # 2. Tokenizer
@@ -111,35 +97,25 @@ def main():
         dropout=0.3,
     ).to(device)
 
-    # Libera memória não utilizada
-    gc.collect()
-    torch.cuda.empty_cache() if torch.cuda.is_available() else None
-
     # 7. Algoritmo de treinamento
-    criterion = nn.CrossEntropyLoss()
     training_algorithm = FineTuningAlgorithm(
         model,
         train_loader,
         val_loader,
-        criterion,
         device,
         lr_encoder=args.lr_encoder,
         lr_classifier=args.lr_classifier,
         freeze_encoder=args.freeze_encoder,
     )
 
+    # Observador responsável por imprimir o progresso do treinamento
+    training_algorithm.add(TrainingPrintObserver())
+
     # Observador responsável por salvar o melhor modelo durante o treinamento
     training_algorithm.add(ModelCheckpointObserver(args.output_dir, tokenizer))
 
-    if args.freeze_encoder:
-        print("[INFO] Encoder congelado — treinando apenas a cabeça de classificação")
-
     # 8. Loop de treinamento
-    best_val_acc = training_algorithm.fit(epochs=args.epochs)
-
-    print(
-        f"Treinamento concluído! Melhor acurácia de validação: {best_val_acc:.4f}")
-    print(f"Modelo salvo em: {args.output_dir}")
+    training_algorithm.fit(epochs=args.epochs)
 
 
 if __name__ == "__main__":
