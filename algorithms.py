@@ -1,4 +1,5 @@
 from tqdm import tqdm
+from stop_criteria import StopCriteria
 import torch.nn as nn
 import abc
 
@@ -56,8 +57,6 @@ class FineTuningAlgorithm(Algorithm):
         self.lr_classifier = lr_classifier
         self.freeze_encoder = freeze_encoder
 
-        self.epochs: int = 0
-        self.epoch: int = 0
         self.train_loss: float = 0.0
         self.train_acc: float = 0.0
         self.val_loss: float = 0.0
@@ -149,13 +148,12 @@ class FineTuningAlgorithm(Algorithm):
 
         return total_loss / total, correct / total
 
-    def fit(self, epochs: int):
-        self.epochs = epochs
+    def fit(self, stop_criteria: StopCriteria):
 
+        self.epoch = 0
         self.notify_started()
 
-        for epoch in range(1, epochs + 1):
-            self.epoch = epoch
+        while True:
 
             train_loss, train_acc = self.train_one_epoch()
             val_loss, val_acc = self.evaluate()
@@ -165,6 +163,10 @@ class FineTuningAlgorithm(Algorithm):
             self.val_loss = val_loss
             self.val_acc = val_acc
 
+            self.epoch += 1
             self.notify_iteration()
+
+            if stop_criteria.isFinished(self):
+                break
 
         self.notify_finished()

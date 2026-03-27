@@ -28,11 +28,8 @@ class AlgorithmObserver(abc.ABC):
 
 class TrainingPrintObserver(AlgorithmObserver):
     def notify_started(self, alg: al.Algorithm):
-        epochs = getattr(alg, "epochs", None)
-        if epochs is None:
-            return
         print(f"\n{'='*60}")
-        print(f"  Iniciando treinamento — {epochs} épocas")
+        print(f"  Iniciando treinamento")
         print(f"{'='*60}\n")
 
     def notify_finished(self, alg: al.Algorithm):
@@ -42,16 +39,12 @@ class TrainingPrintObserver(AlgorithmObserver):
 
     def notify_iteration(self, alg: al.Algorithm):
         epoch = getattr(alg, "epoch", None)
-        epochs = getattr(alg, "epochs", None)
         train_loss = getattr(alg, "train_loss", None)
         train_acc = getattr(alg, "train_acc", None)
         val_loss = getattr(alg, "val_loss", None)
         val_acc = getattr(alg, "val_acc", None)
 
-        if None in (epoch, epochs, train_loss, train_acc, val_loss, val_acc):
-            return
-
-        print(f"Época {epoch}/{epochs}")
+        print(f"Época {epoch}")
         print(f"  Treino  — Loss: {train_loss:.4f} | Acc: {train_acc:.4f}")
         print(f"  Valid.  — Loss: {val_loss:.4f} | Acc: {val_acc:.4f}")
         print()

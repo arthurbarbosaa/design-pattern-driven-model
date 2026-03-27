@@ -24,6 +24,7 @@ from observers import ModelCheckpointObserver, TrainingPrintObserver
 from preprocessing import Preprocessing, LABELS
 from datasets import CodeDataset
 from model import CodeBERTClassifier
+from stop_criteria import CompositeStopCriteria, MaxEpochStopCriteria
 
 # ==================== Main ====================
 
@@ -115,7 +116,10 @@ def main():
     training_algorithm.add(ModelCheckpointObserver(args.output_dir, tokenizer))
 
     # 8. Loop de treinamento
-    training_algorithm.fit(epochs=args.epochs)
+    stop_criteria = CompositeStopCriteria()
+    stop_criteria.add(MaxEpochStopCriteria(args.epochs))
+
+    training_algorithm.fit(stop_criteria)
 
 
 if __name__ == "__main__":
