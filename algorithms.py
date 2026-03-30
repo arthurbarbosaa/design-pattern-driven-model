@@ -1,4 +1,3 @@
-from tqdm import tqdm
 from stop_criteria import StopCriteria
 import torch.nn as nn
 import abc
@@ -31,17 +30,12 @@ class Algorithm(abc.ABC):
     def notify_finished(self):
         [o.notify_finished(self) for o in self.algorithm_observers]
 
-    def notify_better_valadation_accurency(self):
-        [o.notify_better_valadation_accurency(
-            self) for o in self.algorithm_observers]
-
 
 class FineTuningAlgorithm(Algorithm):
     def __init__(
         self,
         model,
         train_dataloader,
-        val_dataloader,
         device,
         lr_encoder: float = 1e-5,
         lr_classifier: float = 1e-3,
@@ -50,7 +44,6 @@ class FineTuningAlgorithm(Algorithm):
         super().__init__()
         self.model = model
         self.train_dataloader = train_dataloader
-        self.val_dataloader = val_dataloader
         self.device = device
 
         self.lr_encoder = lr_encoder
@@ -59,8 +52,6 @@ class FineTuningAlgorithm(Algorithm):
 
         self.train_loss: float = 0.0
         self.train_acc: float = 0.0
-        self.val_loss: float = 0.0
-        self.val_acc: float = 0.0
 
         self._setup()
 
@@ -94,20 +85,18 @@ class FineTuningAlgorithm(Algorithm):
         self.optimizer = torch.optim.AdamW(param_groups)
         self.loss_fn = nn.CrossEntropyLoss()
 
-    def _process_batch(self, batch, is_training: bool) -> tuple[float, int, int]:
+    def _process_batch(self, batch) -> tuple[float, int, int]:
         input_ids = batch["input_ids"].to(self.device)
         attention_mask = batch["attention_mask"].to(self.device)
         labels = batch["label"].to(self.device)
 
-        if is_training:
-            self.optimizer.zero_grad()
+        self.optimizer.zero_grad()
 
         logits = self.model(input_ids, attention_mask)
         loss = self.loss_fn(logits, labels)
 
-        if is_training:
-            loss.backward()
-            self.optimizer.step()
+        loss.backward()
+        self.optimizer.step()
 
         preds = logits.argmax(dim=1)
         correct = (preds == labels).sum().item()
@@ -123,25 +112,7 @@ class FineTuningAlgorithm(Algorithm):
         total = 0
 
         for batch in self.train_dataloader:
-            batch_loss, batch_correct, batch_total = self._process_batch(
-                batch, is_training=True)
-            total_loss += batch_loss
-            correct += batch_correct
-            total += batch_total
-
-        return total_loss / total, correct / total
-
-    @torch.no_grad()
-    def evaluate(self) -> tuple[float, float]:
-        self.model.eval()
-
-        total_loss = 0.0
-        correct = 0
-        total = 0
-
-        for batch in tqdm(self.val_dataloader, desc="  Valid.", leave=False):
-            batch_loss, batch_correct, batch_total = self._process_batch(
-                batch, is_training=False)
+            batch_loss, batch_correct, batch_total = self._process_batch(batch)
             total_loss += batch_loss
             correct += batch_correct
             total += batch_total
@@ -156,12 +127,9 @@ class FineTuningAlgorithm(Algorithm):
         while True:
 
             train_loss, train_acc = self.train_one_epoch()
-            val_loss, val_acc = self.evaluate()
 
             self.train_loss = train_loss
             self.train_acc = train_acc
-            self.val_loss = val_loss
-            self.val_acc = val_acc
 
             self.epoch += 1
             self.notify_iteration()

@@ -41,12 +41,9 @@ class TrainingPrintObserver(AlgorithmObserver):
         epoch = getattr(alg, "epoch", None)
         train_loss = getattr(alg, "train_loss", None)
         train_acc = getattr(alg, "train_acc", None)
-        val_loss = getattr(alg, "val_loss", None)
-        val_acc = getattr(alg, "val_acc", None)
 
         print(f"Época {epoch}")
         print(f"  Treino  — Loss: {train_loss:.4f} | Acc: {train_acc:.4f}")
-        print(f"  Valid.  — Loss: {val_loss:.4f} | Acc: {val_acc:.4f}")
         print()
 
 
@@ -56,7 +53,7 @@ class ModelCheckpointObserver(AlgorithmObserver):
         super().__init__()
         self.output_dir = output_dir
         self.tokenizer = tokenizer
-        self.best_val_acc = 0.0
+        self.best_train_acc = 0.0
 
     def notify_started(self, alg: al.Algorithm):
         pass
@@ -65,12 +62,12 @@ class ModelCheckpointObserver(AlgorithmObserver):
         pass
 
     def notify_iteration(self, alg: al.Algorithm):
-        val_acc = getattr(alg, "val_acc", None)
-        if val_acc is None:
+        train_acc = getattr(alg, "train_acc", None)
+        if train_acc is None:
             return
 
-        if val_acc >= self.best_val_acc:
-            self.best_val_acc = val_acc
+        if train_acc >= self.best_train_acc:
+            self.best_train_acc = train_acc
             self._save_checkpoint(alg)
 
     def _save_checkpoint(self, alg: al.Algorithm):
