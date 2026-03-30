@@ -1,16 +1,15 @@
 """
 train.py — Script de treinamento (fine-tuning) do CodeBERT para classificação
-           de padrões de projeto em código Python.
+                     de padrões de projeto em código Python.
 
 Fluxo:
-  1. Carrega exemplos do dataset (pastas com arquivos .py)
-  2. Tokeniza com o tokenizer do CodeBERT
-  3. Divide em treino / validação (80 / 20)
-  4. Treina com loop customizado PyTorch (AdamW + CrossEntropyLoss)
-  5. Salva modelo e tokenizer ao final
+    1. Carrega exemplos do dataset (pastas com arquivos .py)
+    2. Tokeniza com o tokenizer do CodeBERT
+    3. Treina com loop customizado PyTorch (AdamW + CrossEntropyLoss)
+    4. Salva modelo e tokenizer ao final
 
 Exemplo de uso:
-    python train.py --data_dir dataset --output_dir models/codebert_dp --epochs 3 --batch_size 2
+        python train.py --data_dir dataset --output_dir models/codebert_dp --epochs 3 --batch_size 2
 """
 
 import argparse
@@ -38,7 +37,7 @@ def main():
                         default="models/codebert_dp", help="Diretório de saída do modelo")
     parser.add_argument("--model_name", type=str,
                         default="microsoft/codebert-base", help="Nome do modelo HuggingFace")
-    parser.add_argument("--epochs", type=int, default=20,
+    parser.add_argument("--epochs", type=int, default=3,
                         help="Número de épocas de treino")
     parser.add_argument("--batch_size", type=int,
                         default=2, help="Tamanho do batch")
@@ -48,8 +47,6 @@ def main():
                         help="Taxa de aprendizado da cabeça de classificação")
     parser.add_argument("--max_length", type=int, default=256,
                         help="Comprimento máximo de tokens")
-    parser.add_argument("--val_ratio", type=float, default=0.2,
-                        help="Fração do dataset para validação")
     parser.add_argument(
         "--freeze_encoder",
         action="store_true",
@@ -72,22 +69,15 @@ def main():
             "[ERRO] Nenhum exemplo encontrado. Verifique a estrutura de pastas do dataset.")
         return
 
-    # 4. Split treino / validação
-    train_examples, val_examples = Preprocessing.split_examples(
-        examples, val_ratio=args.val_ratio)
-    print(
-        f"[INFO] Treino: {len(train_examples)} exemplos | Validação: {len(val_examples)} exemplos")
+    # 4. Usar todos os exemplos para treino
+    train_examples = examples
+    print(f"[INFO] Treino: {len(train_examples)} exemplos")
 
     # 5. Criar Datasets e DataLoaders
     train_dataset = CodeDataset(
         train_examples, tokenizer, max_length=args.max_length)
-    val_dataset = CodeDataset(val_examples, tokenizer,
-                              max_length=args.max_length)
-
     train_loader = DataLoader(
         train_dataset, batch_size=args.batch_size, shuffle=True)
-    val_loader = DataLoader(
-        val_dataset, batch_size=args.batch_size, shuffle=False)
 
     # 6. Modelo
     print(
@@ -102,7 +92,6 @@ def main():
     training_algorithm = FineTuningAlgorithm(
         model,
         train_loader,
-        val_loader,
         device,
         lr_encoder=args.lr_encoder,
         lr_classifier=args.lr_classifier,

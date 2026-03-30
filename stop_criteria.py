@@ -31,3 +31,14 @@ class MaxEpochStopCriteria(StopCriteria):
     def isFinished(self, alg: al.Algorithm) -> bool:
         epoch = getattr(alg, "epoch", 0)
         return epoch >= self.max_epoch
+
+
+class MinLossStopCriteria(StopCriteria):
+    def __init__(self, min_loss: float = 0.1):
+        self.min_loss = min_loss
+
+    def isFinished(self, alg: al.Algorithm) -> bool:
+        train_loss = getattr(alg, "train_loss", None)
+        if train_loss is None:
+            return False
+        return train_loss <= self.min_loss
