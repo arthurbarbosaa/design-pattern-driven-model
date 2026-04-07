@@ -20,7 +20,8 @@ from transformers import AutoTokenizer
 
 from algorithms import FineTuningAlgorithm
 from observers import ModelCheckpointObserver, TrainingPrintObserver
-from preprocessing import Preprocessing, LABELS
+from preprocessing import Preprocessing
+from labels import LABELS
 from datasets import CodeDataset
 from model import CodeBERTClassifier
 from stop_criteria import CompositeStopCriteria, MaxEpochStopCriteria

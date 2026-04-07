@@ -20,7 +20,7 @@ import torch.nn.functional as F
 from transformers import AutoTokenizer
 
 from model import CodeBERTClassifier
-from preprocessing import LABELS, LABEL2ID
+from labels import LABELS
 
 
 def get_device() -> torch.device:

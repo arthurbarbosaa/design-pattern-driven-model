@@ -1,12 +1,8 @@
 import os
 import random
-from typing import List
 
 from shared_types import CodeExamples
-
-LABELS: List[str] = ["singleton", "factory", "observer", "strategy", "none"]
-LABEL2ID: dict[str, int] = {label: idx for idx, label in enumerate(LABELS)}
-ID2LABEL: dict[int, str] = {idx: label for idx, label in enumerate(LABELS)}
+from labels import LABEL2ID
 
 
 class Preprocessing:
