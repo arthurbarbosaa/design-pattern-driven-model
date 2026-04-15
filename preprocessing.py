@@ -1,11 +1,20 @@
 import os
 import random
+import torch
 
 from shared_types import CodeExamples
 from labels import LABEL2ID
 
 
 class Preprocessing:
+
+    @staticmethod
+    def get_device() -> torch.device:
+        if torch.backends.mps.is_available():
+            return torch.device("mps")
+        if torch.cuda.is_available():
+            return torch.device("cuda")
+        return torch.device("cpu")
 
     @staticmethod
     def load_examples(data_dir: str) -> CodeExamples:
